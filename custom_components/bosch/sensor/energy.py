@@ -1,24 +1,27 @@
 """Bosch sensor for Energy URI in Easycontrol."""
+
 from __future__ import annotations
+
+from datetime import datetime, timedelta
 import logging
-from datetime import timedelta, datetime
+
 from bosch_thermostat_client.const import UNITS
-from .statistic_helper import StatisticHelper
-from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
-from homeassistant.const import (
-    UnitOfEnergy,
-    UnitOfTemperature,
-    UnitOfVolume,
-    STATE_UNAVAILABLE,
-)
-from homeassistant.util import dt as dt_util
+
 from homeassistant.components.recorder.models import (
     StatisticData,
     timestamp_to_datetime_or_none,
 )
-
+from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
+from homeassistant.const import (
+    STATE_UNAVAILABLE,
+    UnitOfEnergy,
+    UnitOfTemperature,
+    UnitOfVolume,
+)
+from homeassistant.util import dt as dt_util
 
 from ..const import SIGNAL_ENERGY_UPDATE_BOSCH, VALUE
+from .statistic_helper import StatisticHelper
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -178,10 +181,10 @@ class EnergySensor(StatisticHelper):
         now = dt_util.now()
         diff = now - start
         if now.day == start.day:
-            _LOGGER.warn("Can't upsert today date. Try again tomorrow.")
+            _LOGGER.warning("Can't upsert today date. Try again tomorrow")
             return
         if diff > timedelta(days=60):
-            _LOGGER.warn(
+            _LOGGER.warning(
                 "Update more than 60 days in past might take some time! Component will try to do that anyway!"
             )
         start_time = dt_util.start_of_local_day(start)
@@ -190,7 +193,7 @@ class EnergySensor(StatisticHelper):
         )  # return list of objects {'d': datetime with timezone, 'value': 'used kWh in last hour'}
         _day_dt = start_time.strftime("%d-%m-%Y")
         if not stats or _day_dt not in stats:
-            _LOGGER.debug("No stats found. Exiting.")
+            _LOGGER.debug("No stats found. Exiting")
             return
         day_data = stats[_day_dt]
         _value = round(day_data[self._attr_read_key] / 24, 2)
@@ -208,6 +211,7 @@ class EnergySensor(StatisticHelper):
         self.add_external_stats(stats=statistics)
 
     def append_statistics(self, stats, sum) -> float:
+        """Append statistics to the external stats and return the updated sum."""
         statistics_to_push = []
         start_of_day = dt_util.start_of_local_day()
         for stat in stats:
@@ -224,7 +228,7 @@ class EnergySensor(StatisticHelper):
             )
             statistics_to_push += statistics
             _LOGGER.debug(
-                "Appending day to statistic table with id: %s. Date: %s, state: %s, sum: %s.",
+                "Appending day to statistic table with id: %s. Date: %s, state: %s, sum: %s",
                 self.statistic_id,
                 _date,
                 _value,
@@ -238,10 +242,10 @@ class EnergySensor(StatisticHelper):
         _sum = 0
         last_stat = await self.get_last_stat()
         if len(last_stat) == 0 or len(last_stat[self.statistic_id]) == 0:
-            _LOGGER.debug("Last stats not exist. Trying to fetch ALL data.")
+            _LOGGER.debug("Last stats not exist. Trying to fetch ALL data")
             all_stats = list((await self._bosch_object.fetch_all()).values())
             if not all_stats:
-                _LOGGER.warn("Stats not found.")
+                _LOGGER.warning("Stats not found")
                 return
             self.append_statistics(stats=all_stats, sum=_sum)
             return

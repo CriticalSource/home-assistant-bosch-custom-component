@@ -1,9 +1,11 @@
 """Constants for the bosch component."""
+
 from datetime import timedelta
 
-import voluptuous as vol
 from bosch_thermostat_client.const import DHW, HC, SC, ZN
 from bosch_thermostat_client.const.easycontrol import DV
+import voluptuous as vol
+
 from homeassistant.const import UnitOfEnergy, UnitOfTemperature
 
 DOMAIN = "bosch"

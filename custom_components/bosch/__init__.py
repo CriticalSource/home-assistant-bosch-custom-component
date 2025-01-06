@@ -1,23 +1,21 @@
 """Platform to control a Bosch IP thermostats units."""
+
 from __future__ import annotations
+
 import asyncio
+from collections.abc import Awaitable
+from datetime import timedelta
 import logging
 import random
-from datetime import timedelta
-from collections.abc import Awaitable
 from typing import Any
 
-from homeassistant.components.persistent_notification import async_create as async_create_persistent_notification
-import homeassistant.helpers.config_validation as cv
-from homeassistant.helpers.dispatcher import async_dispatcher_connect
-import voluptuous as vol
 from bosch_thermostat_client.const import (
     DHW,
     HC,
     HTTP,
     NUMBER,
-    SC,
     RECORDING,
+    SC,
     SELECT,
     SENSOR,
     ZN,
@@ -25,22 +23,28 @@ from bosch_thermostat_client.const import (
 from bosch_thermostat_client.const.easycontrol import DV
 from bosch_thermostat_client.exceptions import (
     DeviceException,
-    FirmwareException,
     EncryptionException,
+    FirmwareException,
     UnknownDevice,
 )
 from bosch_thermostat_client.version import __version__ as LIBVERSION
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import callback, HomeAssistant
-from homeassistant.const import (
-    ATTR_ENTITY_ID,
-    CONF_ADDRESS,
-    EVENT_HOMEASSISTANT_STOP,
+from custom_components.bosch.switch import SWITCH
+import voluptuous as vol
+
+from homeassistant.components.persistent_notification import (
+    async_create as async_create_persistent_notification,
 )
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import ATTR_ENTITY_ID, CONF_ADDRESS, EVENT_HOMEASSISTANT_STOP
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.dispatcher import async_dispatcher_send
+import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers.dispatcher import (
+    async_dispatcher_connect,
+    async_dispatcher_send,
+)
 from homeassistant.helpers.event import (
     async_call_later,
     async_track_point_in_utc_time,
@@ -52,12 +56,12 @@ from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
 from homeassistant.util.json import load_json
 
-from custom_components.bosch.switch import SWITCH
-
 from .const import (
     ACCESS_KEY,
     ACCESS_TOKEN,
     BINARY_SENSOR,
+    BOSCH_GATEWAY_ENTRY,
+    CLIMATE,
     CONF_DEVICE_TYPE,
     CONF_PROTOCOL,
     DOMAIN,
@@ -73,19 +77,17 @@ from .const import (
     SIGNAL_CLIMATE_UPDATE_BOSCH,
     SIGNAL_DHW_UPDATE_BOSCH,
     SIGNAL_NUMBER,
+    SIGNAL_SELECT,
     SIGNAL_SENSOR_UPDATE_BOSCH,
     SIGNAL_SOLAR_UPDATE_BOSCH,
     SIGNAL_SWITCH,
-    SIGNAL_SELECT,
     SOLAR,
     UUID,
     WATER_HEATER,
-    CLIMATE,
-    BOSCH_GATEWAY_ENTRY,
 )
 from .services import (
-    async_register_services,
     async_register_debug_service,
+    async_register_services,
     async_remove_services,
 )
 
@@ -134,7 +136,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Create entry for Bosch thermostat device."""
-    _LOGGER.info(f"Setting up Bosch component version {LIBVERSION}.")
+    _LOGGER.info("Setting up Bosch component version %s", LIBVERSION)
     uuid = entry.data[UUID]
     entry.async_on_unload(entry.add_update_listener(async_update_options))
     gateway_entry = BoschGatewayEntry(
@@ -157,7 +159,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Unload a config entry."""
-    _LOGGER.debug("Removing entry.")
+    _LOGGER.debug("Removing entry")
     uuid = entry.data[UUID]
     data = hass.data[DOMAIN][uuid]
 
@@ -201,7 +203,15 @@ class BoschGatewayEntry:
     """Bosch gateway entry config class."""
 
     def __init__(
-        self, hass, uuid, host, protocol, device_type, access_key, access_token, entry
+        self,
+        hass: HomeAssistant | None,
+        uuid,
+        host,
+        protocol,
+        device_type,
+        access_key,
+        access_token,
+        entry,
     ) -> None:
         """Init Bosch gateway entry config class."""
         self.hass = hass
@@ -222,13 +232,14 @@ class BoschGatewayEntry:
 
     @property
     def device_id(self) -> str:
+        """Return the device ID."""
         return self.config_entry.entry_id
 
     async def async_init(self) -> bool:
         """Init async items in entry."""
         import bosch_thermostat_client as bosch
 
-        _LOGGER.debug("Initializing Bosch integration.")
+        _LOGGER.debug("Initializing Bosch integration")
         self._update_lock = asyncio.Lock()
         BoschGateway = bosch.gateway_chooser(device_type=self._device_type)
         self.gateway = BoschGateway(
@@ -248,12 +259,14 @@ class BoschGatewayEntry:
 
         if await self.async_init_bosch():
             self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, close_connection)
-            async_dispatcher_connect(
-                self.hass, SIGNAL_BOSCH, self.async_get_signals
-            )
+            async_dispatcher_connect(self.hass, SIGNAL_BOSCH, self.async_get_signals)
             await self.hass.config_entries.async_forward_entry_setups(
                 self.config_entry,
-                [component for component in self.supported_platforms if component != SOLAR]
+                [
+                    component
+                    for component in self.supported_platforms
+                    if component != SOLAR
+                ],
             )
             device_registry = dr.async_get(self.hass)
             device_registry.async_get_or_create(
@@ -265,10 +278,10 @@ class BoschGatewayEntry:
                 sw_version=self.gateway.firmware,
             )
             if GATEWAY in self.hass.data[DOMAIN][self.uuid]:
-                _LOGGER.debug("Registering debug services.")
+                _LOGGER.debug("Registering debug services")
                 async_register_debug_service(hass=self.hass, entry=self)
             _LOGGER.debug(
-                "Bosch component registered with platforms %s.",
+                "Bosch component registered with platforms %s",
                 self.supported_platforms,
             )
             return True
@@ -280,7 +293,7 @@ class BoschGatewayEntry:
         if not self._signal_registered and all(
             k in self.hass.data[DOMAIN][self.uuid] for k in self.supported_platforms
         ):
-            _LOGGER.debug("Registering thermostat update interval.")
+            _LOGGER.debug("Registering thermostat update interval")
             self._signal_registered = True
             self.hass.data[DOMAIN][self.uuid][INTERVAL] = async_track_time_interval(
                 self.hass, self.thermostat_refresh, SCAN_INTERVAL
@@ -291,38 +304,34 @@ class BoschGatewayEntry:
                 FIRMWARE_SCAN_INTERVAL,  # SCAN INTERVAL FV
             )
             async_call_later(self.hass, 5, self.thermostat_refresh)
-            asyncio.run_coroutine_threadsafe(self.recording_sensors_update(),
-                self.hass.loop
+            asyncio.run_coroutine_threadsafe(
+                self.recording_sensors_update(), self.hass.loop
             )
 
     async def async_init_bosch(self) -> bool:
         """Initialize Bosch gateway module."""
-        _LOGGER.debug("Checking connection to Bosch gateway as %s.", self._host)
+        _LOGGER.debug("Checking connection to Bosch gateway as %s", self._host)
         try:
             await self.gateway.check_connection()
-        except (FirmwareException) as err:
+        except FirmwareException as err:
             create_notification_firmware(hass=self.hass, msg=err)
             _LOGGER.error(err)
             return False
         except (UnknownDevice, EncryptionException) as err:
             _LOGGER.error(err)
-            _LOGGER.error("You might need to check your password.")
+            _LOGGER.error("You might need to check your password")
             raise ConfigEntryNotReady(
-                "Cannot connect to Bosch gateway, host %s with UUID: %s",
-                self._host,
-                self.uuid,
-            )
+                f"Cannot connect to Bosch gateway - host {self._host} with UUID: {self.uuid}"
+            ) from err
         if not self.gateway.uuid:
             raise ConfigEntryNotReady(
-                "Cannot connect to Bosch gateway, host %s with UUID: %s",
-                self._host,
-                self.uuid,
+                f"Cannot connect to Bosch gateway - host {self._host} with UUID: {self.uuid}"
             )
         _LOGGER.debug("Bosch BUS detected: %s", self.gateway.bus_type)
         if not self.gateway.database:
             custom_db = load_json(self.hass.config.path(CUSTOM_DB), default=None)
             if custom_db:
-                _LOGGER.info("Loading custom db file.")
+                _LOGGER.info("Loading custom db file")
                 await self.gateway.custom_initialize(custom_db)
         if self.gateway.database:
             supported_bosch = await self.gateway.get_capabilities()
@@ -332,7 +341,7 @@ class BoschGatewayEntry:
                     if element not in self.supported_platforms:
                         self.supported_platforms.append(element)
         self.hass.data[DOMAIN][self.uuid][GATEWAY] = self.gateway
-        _LOGGER.info("Bosch initialized.")
+        _LOGGER.info("Bosch initialized")
         return True
 
     async def recording_sensors_update(self, now=None) -> bool | None:
@@ -343,7 +352,7 @@ class BoschGatewayEntry:
         """
         entities = self.hass.data[DOMAIN][self.uuid].get(RECORDING, [])
         if not entities:
-            return
+            return None
         recording_callback = self.hass.data[DOMAIN][self.uuid].pop(
             RECORDING_INTERVAL, None
         )
@@ -377,17 +386,18 @@ class BoschGatewayEntry:
             )
 
         nexti = rounder(now + timedelta(seconds=1))
-        self.hass.data[DOMAIN][self.uuid][
-            RECORDING_INTERVAL
-        ] = async_track_point_in_utc_time(
-            self.hass, self.recording_sensors_update, nexti
+        self.hass.data[DOMAIN][self.uuid][RECORDING_INTERVAL] = (
+            async_track_point_in_utc_time(
+                self.hass, self.recording_sensors_update, nexti
+            )
         )
         _LOGGER.debug("Next update of 1-hour sensors scheduled at: %s", nexti)
         if updated:
-            _LOGGER.debug("Bosch 1-hour entitites updated.")
+            _LOGGER.debug("Bosch 1-hour entitites updated")
             for signal in signals:
                 async_dispatcher_send(self.hass, signal)
             return True
+        return None
 
     async def custom_put(self, path: str, value: Any) -> None:
         """Send PUT directly to gateway without parsing."""
@@ -421,7 +431,7 @@ class BoschGatewayEntry:
                             err,
                         )
             if updated:
-                _LOGGER.debug(f"Bosch {component_type   } entitites updated.")
+                _LOGGER.debug("Bosch %s entitites updated", component_type)
                 async_dispatcher_send(self.hass, SIGNALS[component_type])
                 return True
         return False
@@ -429,9 +439,9 @@ class BoschGatewayEntry:
     async def thermostat_refresh(self, event_time=None):
         """Call Bosch to refresh information."""
         if self._update_lock.locked():
-            _LOGGER.debug("Update already in progress. Not updating.")
+            _LOGGER.debug("Update already in progress. Not updating")
             return
-        _LOGGER.debug("Updating Bosch thermostat entitites.")
+        _LOGGER.debug("Updating Bosch thermostat entitites")
         async with self._update_lock:
             await self.component_update(SENSOR, event_time)
             await self.component_update(BINARY_SENSOR, event_time)
@@ -439,14 +449,14 @@ class BoschGatewayEntry:
             await self.component_update(WATER_HEATER, event_time)
             await self.component_update(SWITCH, event_time)
             await self.component_update(NUMBER, event_time)
-            _LOGGER.debug("Finish updating entities. Waiting for next scheduled check.")
+            _LOGGER.debug("Finish updating entities. Waiting for next scheduled check")
 
     async def firmware_refresh(self, event_time=None):
         """Call Bosch to refresh firmware info."""
         if self._update_lock.locked():
-            _LOGGER.debug("Update already in progress. Not updating.")
+            _LOGGER.debug("Update already in progress. Not updating")
             return
-        _LOGGER.debug("Updating info about Bosch firmware.")
+        _LOGGER.debug("Updating info about Bosch firmware")
         try:
             async with self._update_lock:
                 await self.gateway.check_firmware_validity()
@@ -460,7 +470,7 @@ class BoschGatewayEntry:
             _LOGGER.info("Starting rawscan of Bosch component")
             self.hass.components.persistent_notification.async_create(
                 title="Bosch scan",
-                message=(f"Starting rawscan"),
+                message=("Starting rawscan"),
                 notification_id=NOTIFICATION_ID,
             )
             rawscan = await self.gateway.rawscan()
@@ -475,7 +485,7 @@ class BoschGatewayEntry:
                 "/local/bosch_scan.json?v",
                 random.randint(0, 5000),
             )
-            _LOGGER.info(f"Rawscan success. Your URL: {url}")
+            _LOGGER.info("Rawscan success. Your URL: %s", url)
             self.hass.components.persistent_notification.async_create(
                 title="Bosch scan",
                 message=(f"[{url}]({url})"),
@@ -485,8 +495,8 @@ class BoschGatewayEntry:
 
     async def async_reset(self) -> bool:
         """Reset this device to default state."""
-        _LOGGER.warn("Unloading Bosch module.")
-        _LOGGER.debug("Closing connection to gateway.")
+        _LOGGER.warning("Unloading Bosch module")
+        _LOGGER.debug("Closing connection to gateway")
         tasks: list[Awaitable] = [
             self.hass.config_entries.async_forward_entry_unload(
                 self.config_entry, platform

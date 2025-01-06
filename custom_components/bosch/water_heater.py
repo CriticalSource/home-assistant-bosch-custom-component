@@ -1,12 +1,14 @@
-"""
-Support for water heaters connected to Bosch thermostat.
+"""Support for water heaters connected to Bosch thermostat.
 
 For more details about this platform, please refer to the documentation at...
 """
+
 from __future__ import annotations
+
 import logging
 
 from bosch_thermostat_client.const import GATEWAY, SETPOINT
+
 from homeassistant.components.water_heater import (
     ATTR_TARGET_TEMP_HIGH,
     ATTR_TARGET_TEMP_LOW,
@@ -15,6 +17,7 @@ from homeassistant.components.water_heater import (
     WaterHeaterEntityFeature,
 )
 from homeassistant.const import ATTR_TEMPERATURE
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
@@ -36,7 +39,9 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_setup_entry(hass, config_entry, async_add_entities) -> bool:
+async def async_setup_entry(
+    hass: HomeAssistant, config_entry, async_add_entities
+) -> bool:
     """Set up the Bosch Water heater from a config entry."""
     uuid = config_entry.data[UUID]
     data = hass.data[DOMAIN][uuid]
@@ -58,7 +63,7 @@ class BoschWaterHeater(BoschClimateWaterEntity, WaterHeaterEntity):
 
     signal = SIGNAL_DHW_UPDATE_BOSCH
 
-    def __init__(self, hass, uuid, bosch_object, gateway) -> None:
+    def __init__(self, hass: HomeAssistant | None, uuid, bosch_object, gateway) -> None:
         """Initialize the water heater."""
         self._name_prefix = "Water heater"
         self._mode = None
@@ -80,6 +85,7 @@ class BoschWaterHeater(BoschClimateWaterEntity, WaterHeaterEntity):
 
     @property
     def state_attributes(self):
+        """Return the state attributes of the water heater."""
         data = super().state_attributes
         data.pop(ATTR_TARGET_TEMP_HIGH, None)
         data.pop(ATTR_TARGET_TEMP_LOW, None)
@@ -92,8 +98,7 @@ class BoschWaterHeater(BoschClimateWaterEntity, WaterHeaterEntity):
     @property
     def extra_state_attributes(self):
         """Return the optional device state attributes."""
-        data = {"target_temp_step": 1}
-        return data
+        return {"target_temp_step": 1}
 
     @property
     def current_operation(self):
@@ -132,7 +137,7 @@ class BoschWaterHeater(BoschClimateWaterEntity, WaterHeaterEntity):
 
     async def async_set_operation_mode(self, operation_mode):
         """Set operation mode."""
-        _LOGGER.debug(f"Setting operation mode of {self._name} to {operation_mode}.")
+        _LOGGER.debug("Setting operation mode of %s to %s", self._name, operation_mode)
         status = await self.bosch_object.set_ha_mode(operation_mode)
         if status > 0:
             return True
@@ -140,7 +145,7 @@ class BoschWaterHeater(BoschClimateWaterEntity, WaterHeaterEntity):
 
     async def async_update(self):
         """Get the latest date."""
-        _LOGGER.debug("Updating Bosch water_heater.")
+        _LOGGER.debug("Updating Bosch water_heater")
         if not self._bosch_object or not self._bosch_object.update_initialized:
             return
         self._temperature_unit = UNITS_CONVERTER.get(

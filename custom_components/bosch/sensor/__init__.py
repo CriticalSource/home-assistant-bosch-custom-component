@@ -8,10 +8,19 @@ from bosch_thermostat_client.const import (
     SENSORS,
 )
 from bosch_thermostat_client.const.easycontrol import ENERGY
+
+from bosch.const import (
+    CIRCUITS,
+    DOMAIN,
+    GATEWAY,
+    SERVICE_MOVE_OLD_DATA,
+    SIGNAL_BOSCH,
+    UUID,
+)
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-from ..const import CIRCUITS, DOMAIN, GATEWAY, SERVICE_MOVE_OLD_DATA, SIGNAL_BOSCH, UUID
 from .bosch import BoschSensor
 from .circuit import CircuitSensor
 from .energy import EcusRecordingSensors, EnergySensor, EnergySensors
@@ -34,7 +43,7 @@ SensorKinds = {
 }
 
 
-async def async_setup_entry(hass, config_entry, async_add_entities):
+async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entities):
     """Set up the Bosch Thermostat from a config entry."""
     uuid = config_entry.data[UUID]
     data = hass.data[DOMAIN][uuid]
@@ -65,11 +74,11 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                         name=sensor.name,
                         attr_uri=sensor.attr_id,
                         is_enabled=sensor.attr_id in enabled_sensors,
-                        **kwargs
+                        **kwargs,
                     )
                 ],
             )
-        elif sensor.kind == ENERGY:
+        if sensor.kind == ENERGY:
             return (
                 SensorKinds[sensor.kind],
                 [
@@ -86,7 +95,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                     for energy in EnergySensors
                 ],
             )
-        elif sensor.kind == ECUS_RECORDING:
+        if sensor.kind == ECUS_RECORDING:
             return (
                 SensorKinds[sensor.kind],
                 [

@@ -5,8 +5,10 @@ import logging
 from bosch_thermostat_client.const import NAME, UNITS, VALUE
 from bosch_thermostat_client.const.ivt import INVALID
 from bosch_thermostat_client.sensors.sensor import Sensor as BoschSensor
-from homeassistant.const import EntityCategory
+
 from homeassistant.components.sensor import SensorEntity
+from homeassistant.const import EntityCategory
+from homeassistant.core import HomeAssistant
 
 from ..bosch_entity import BoschEntity
 from ..const import UNITS_CONVERTER
@@ -21,7 +23,7 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
 
     def __init__(
         self,
-        hass,
+        hass: HomeAssistant,
         uuid,
         bosch_object: BoschSensor,
         gateway,
@@ -30,7 +32,7 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
         domain_name=None,
         circuit_type=None,
         is_enabled=False,
-    ):
+    ) -> None:
         """Initialize the sensor."""
         super().__init__(
             hass=hass,
@@ -87,7 +89,7 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
 
     async def async_update(self):
         """Update state of device."""
-        _LOGGER.debug("Update of sensor %s called.", self.unique_id)
+        _LOGGER.debug("Update of sensor %s called", self.unique_id)
         data = self._bosch_object.get_property(self._attr_uri)
 
         def get_units():
@@ -131,6 +133,13 @@ class BoschBaseSensor(BoschEntity, SensorEntity):
         )
 
     def attrs_write(self, data, units):
+        """Write attributes to the sensor.
+
+        Args:
+            data (dict): The data to write to the attributes.
+            units (str): The units of measurement.
+
+        """
         self._attrs = data
         if self._state != INVALID:
             self._unit_of_measurement = units

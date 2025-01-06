@@ -1,8 +1,11 @@
 """Support for Bosch Thermostat Binary Sensor."""
+
 import logging
 
 from bosch_thermostat_client.const import BINARY, ON, USED
+
 from homeassistant.components.binary_sensor import BinarySensorEntity
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .bosch_entity import BoschEntity
@@ -18,7 +21,7 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_setup_entry(hass, config_entry, async_add_entities):
+async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entities):
     """Set up the Bosch Thermostat from a config entry."""
     uuid = config_entry.data[UUID]
     data = hass.data[DOMAIN][uuid]
@@ -52,14 +55,14 @@ class BoschBinarySensor(BoschEntity, BinarySensorEntity):
 
     def __init__(
         self,
-        hass,
+        hass: HomeAssistant,
         uuid,
         bosch_object,
         gateway,
         name,
         attr_uri,
         is_enabled=False,
-    ):
+    ) -> None:
         """Initialize the sensor."""
         super().__init__(
             hass=hass, uuid=uuid, bosch_object=bosch_object, gateway=gateway
@@ -86,12 +89,10 @@ class BoschBinarySensor(BoschEntity, BinarySensorEntity):
 
     async def async_update(self):
         """Update state of device."""
-        _LOGGER.debug("Update of binary sensor %s called.", self.unique_id)
+        _LOGGER.debug("Update of binary sensor %s called", self.unique_id)
 
         def get_on_attr():
-            if self._bosch_object.state.lower() == ON:
-                return True
-            elif (
+            if self._bosch_object.state.lower() == ON or (
                 self._bosch_object.get_value(USED, "true").lower() == "true"
                 and self._bosch_object.state.lower() == USED
             ):

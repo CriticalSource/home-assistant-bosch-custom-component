@@ -1,12 +1,14 @@
-"""
-Support for water heaters connected to Bosch thermostat.
+"""Support for water heaters connected to Bosch thermostat.
 
 For more details about this platform, please refer to the documentation at...
 """
+
 import logging
 
 from bosch_thermostat_client.const import GATEWAY
+
 from homeassistant.components.switch import SwitchEntity
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .bosch_entity import BoschEntity
@@ -23,7 +25,9 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_setup_entry(hass, config_entry, async_add_entities):
+async def async_setup_entry(
+    hass: HomeAssistant | None, config_entry, async_add_entities
+):
     """Set up the Bosch Switch from a config entry."""
     uuid = config_entry.data[UUID]
     data = hass.data[DOMAIN][uuid]
@@ -65,9 +69,10 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     return True
 
 
-async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
+async def async_setup_platform(
+    hass: HomeAssistant | None, config, async_add_entities, discovery_info=None
+):
     """Set up the Bosch Thermostat Platform."""
-    pass
 
 
 class BoschBaseSwitch(BoschEntity, SwitchEntity):
@@ -77,7 +82,7 @@ class BoschBaseSwitch(BoschEntity, SwitchEntity):
 
     def __init__(
         self,
-        hass,
+        hass: HomeAssistant,
         uuid,
         bosch_object,
         gateway,
@@ -86,7 +91,7 @@ class BoschBaseSwitch(BoschEntity, SwitchEntity):
         domain_name,
         circuit_type=None,
         is_enabled=False,
-    ):
+    ) -> None:
         """Set up device and add update callback to get data from websocket."""
         super().__init__(
             hass=hass,
@@ -111,19 +116,20 @@ class BoschBaseSwitch(BoschEntity, SwitchEntity):
 
     async def async_turn_on(self, **kwargs):
         """Turn on switch."""
-        _LOGGER.debug("Turning on %s switch.", self._name)
+        _LOGGER.debug("Turning on %s switch", self._name)
         await self._bosch_object.turn_on()
         self._state = True
         self.schedule_update_ha_state()
 
     async def async_update(self):
+        """Fetch new state data for the switch."""
         if self._state != self._bosch_object.state:
             self._state = self._bosch_object.state
             self.schedule_update_ha_state()
 
     async def async_turn_off(self, **kwargs):
         """Turn off switch."""
-        _LOGGER.debug("Turning off %s switch.", self._name)
+        _LOGGER.debug("Turning off %s switch", self._name)
         await self._bosch_object.turn_off()
         self._state = False
         self.schedule_update_ha_state()
@@ -139,6 +145,7 @@ class BoschSwitch(BoschBaseSwitch):
 
     @property
     def device_name(self):
+        """Return the name of the device."""
         return "Bosch switches"
 
 
@@ -147,4 +154,5 @@ class CircuitSwitch(BoschBaseSwitch):
 
     @property
     def device_name(self):
+        """Return the name of the device."""
         return CIRCUITS_SENSOR_NAMES[self._circuit_type] + " " + self._domain_name

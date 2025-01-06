@@ -1,14 +1,16 @@
 """Bosch base entity."""
+
 from homeassistant.const import UnitOfTemperature
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from .const import DEFAULT_MAX_TEMP, DEFAULT_MIN_TEMP, DOMAIN
 from homeassistant.helpers.entity import DeviceInfo
+
+from .const import DEFAULT_MAX_TEMP, DEFAULT_MIN_TEMP, DOMAIN
 
 
 class BoschEntity:
     """Bosch base entity class."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         """Initialize the entity."""
         if not hasattr(self, "_domain_name"):
             self._domain_name = kwargs.get("domain_name")
@@ -56,7 +58,8 @@ class BoschEntity:
 class BoschClimateWaterEntity(BoschEntity):
     """Bosch climate and water entities base class."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
+        """Initialize the BoschClimateWaterEntity."""
         super().__init__(**kwargs)
         self._name = self._bosch_object.name
         self._temperature_unit = UnitOfTemperature.CELSIUS

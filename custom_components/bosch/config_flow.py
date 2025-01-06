@@ -1,7 +1,7 @@
 """Config flow to configure esphome component."""
+
 import logging
 
-import voluptuous as vol
 from bosch_thermostat_client import gateway_chooser
 from bosch_thermostat_client.const import HTTP, XMPP
 from bosch_thermostat_client.const.easycontrol import EASYCONTROL
@@ -13,10 +13,11 @@ from bosch_thermostat_client.exceptions import (
     FirmwareException,
     UnknownDevice,
 )
-from homeassistant import config_entries
-from homeassistant.core import callback
+import voluptuous as vol
 
+from homeassistant import config_entries
 from homeassistant.const import CONF_ACCESS_TOKEN, CONF_ADDRESS, CONF_PASSWORD
+from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from . import create_notification_firmware
@@ -43,7 +44,7 @@ class BoschFlowHandler(config_entries.ConfigFlow):
     VERSION = 1
     CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_POLL
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize Bosch flow."""
         self._choose_type = None
         self._host = None
@@ -73,7 +74,7 @@ class BoschFlowHandler(config_entries.ConfigFlow):
                     ),
                     errors=errors,
                 )
-            elif self._choose_type in (NEFIT, EASYCONTROL, IVT_MBLAN):
+            if self._choose_type in (NEFIT, EASYCONTROL, IVT_MBLAN):
                 return await self.async_step_protocol({CONF_PROTOCOL: XMPP})
         return self.async_show_form(
             step_id="choose_type",
@@ -88,6 +89,7 @@ class BoschFlowHandler(config_entries.ConfigFlow):
         )
 
     async def async_step_protocol(self, user_input=None):
+        """Handle the protocol step - http or xmpp."""
         errors = {}
         if user_input is not None:
             self._protocol = user_input[CONF_PROTOCOL]
@@ -113,6 +115,7 @@ class BoschFlowHandler(config_entries.ConfigFlow):
         )
 
     async def async_step_http_config(self, user_input=None):
+        """Handle http protocol config."""
         if user_input is not None:
             self._host = user_input[CONF_ADDRESS]
             self._access_token = user_input[CONF_ACCESS_TOKEN]
@@ -125,8 +128,10 @@ class BoschFlowHandler(config_entries.ConfigFlow):
                 access_token=self._access_token,
                 password=self._password,
             )
+        return None
 
     async def async_step_xmpp_config(self, user_input=None):
+        """Handle xmpp protocol config."""
         if user_input is not None:
             self._host = user_input[CONF_ADDRESS]
             self._access_token = user_input[CONF_ACCESS_TOKEN]
@@ -147,10 +152,12 @@ class BoschFlowHandler(config_entries.ConfigFlow):
                 access_token=self._access_token,
                 password=self._password,
             )
+        return None
 
     async def configure_gateway(
         self, device_type, session_type, host, access_token, password=None, session=None
     ):
+        """Configure the Bosch gateway with the provided parameters."""
         try:
             BoschGateway = gateway_chooser(device_type)
             device = BoschGateway(
@@ -171,10 +178,10 @@ class BoschFlowHandler(config_entries.ConfigFlow):
         except (DeviceException, EncryptionException) as err:
             _LOGGER.error("Wrong IP or credentials at %s - %s", host, err)
             return self.async_abort(reason="faulty_credentials")
-        except Exception as err:  # pylint: disable=broad-except
+        except Exception as err:  # pylint: disable=broad-except  # noqa: BLE001
             _LOGGER.error("Error connecting Bosch at %s - %s", host, err)
         else:
-            _LOGGER.debug("Adding Bosch entry.")
+            _LOGGER.debug("Adding Bosch entry")
             return self.async_create_entry(
                 title=device.device_name or "Unknown model",
                 data={
@@ -193,15 +200,15 @@ class BoschFlowHandler(config_entries.ConfigFlow):
 
     @staticmethod
     @callback
-    def async_get_options_flow(entry: config_entries.ConfigEntry):
+    def async_get_options_flow(config_entry: config_entries.ConfigEntry):
         """Get option flow."""
-        return OptionsFlowHandler(entry)
+        return OptionsFlowHandler(config_entry)
 
 
 class OptionsFlowHandler(config_entries.OptionsFlow):
     """Options flow handler for new API."""
 
-    def __init__(self, entry: config_entries.ConfigEntry):
+    def __init__(self, entry: config_entries.ConfigEntry) -> None:
         """Initialize option."""
         self.entry = entry
 

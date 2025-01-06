@@ -1,15 +1,16 @@
 """Support for Bosch Thermostat Climate."""
+
 from __future__ import annotations
+
 import logging
 from typing import Any
 
 from bosch_thermostat_client.const import HVAC_HEAT, HVAC_OFF, SETPOINT
+
 from homeassistant.components.climate import ClimateEntity
-from homeassistant.components.climate.const import (
-    HVACAction,
-    ClimateEntityFeature,
-)
+from homeassistant.components.climate.const import ClimateEntityFeature, HVACAction
 from homeassistant.const import ATTR_TEMPERATURE
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .bosch_entity import BoschClimateWaterEntity
@@ -28,7 +29,9 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_setup_entry(hass, config_entry, async_add_entities):
+async def async_setup_entry(
+    hass: HomeAssistant | None, config_entry, async_add_entities
+):
     """Set up the Bosch thermostat from a config entry."""
     uuid = config_entry.data[UUID]
     data = hass.data[DOMAIN][uuid]
@@ -54,7 +57,12 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
     signal = SIGNAL_CLIMATE_UPDATE_BOSCH
 
     def __init__(
-        self, hass, uuid, bosch_object, gateway, optimistic_mode: bool = False
+        self,
+        hass: HomeAssistant,
+        uuid,
+        bosch_object,
+        gateway,
+        optimistic_mode: bool = False,
     ) -> None:
         """Initialize the thermostat."""
         self._name_prefix = (
@@ -65,6 +73,7 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
         self._hvac_mode = None
         self._optimistic_mode = optimistic_mode
         self._is_enabled = True
+        self._temperature_units = None
 
         super().__init__(
             hass=hass, uuid=uuid, bosch_object=bosch_object, gateway=gateway
@@ -96,7 +105,7 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
 
     async def async_set_hvac_mode(self, hvac_mode):
         """Set operation mode."""
-        _LOGGER.debug(f"Setting operation mode {hvac_mode}.")
+        _LOGGER.debug("Setting operation mode %s", hvac_mode)
 
         if self._optimistic_mode:
             _old_hvac_mode = self._bosch_object.ha_mode
@@ -106,7 +115,7 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
         if status > 0:
             return True
         if self._optimistic_mode:
-            """If fail revert back to mode it was back then."""
+            # If fail revert back to mode it was back then.
             self._hvac_mode = _old_hvac_mode
             self.schedule_update_ha_state()
         return False
@@ -114,7 +123,7 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
     async def async_set_temperature(self, **kwargs):
         """Set new target temperature."""
         temperature = kwargs.get(ATTR_TEMPERATURE)
-        _LOGGER.debug(f"Setting target temperature {temperature}.")
+        _LOGGER.debug("Setting target temperature %s", temperature)
         await self._bosch_object.set_temperature(temperature)
         if self._optimistic_mode:
             self._target_temperature = temperature
@@ -133,6 +142,7 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
             return HVACAction.HEATING
         if hvac_action == HVAC_OFF:
             return HVACAction.IDLE
+        return None
 
     @property
     def hvac_modes(self) -> list:
@@ -155,7 +165,7 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
 
     async def async_update(self):
         """Update state of device."""
-        _LOGGER.debug("Update of climate %s component called.", self._name)
+        _LOGGER.debug("Update of climate %s component called", self._name)
         if not self._bosch_object or not self._bosch_object.update_initialized:
             return
         self._temperature_units = UNITS_CONVERTER.get(self._bosch_object.temp_units)

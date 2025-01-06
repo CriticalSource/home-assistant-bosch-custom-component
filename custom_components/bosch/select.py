@@ -1,23 +1,23 @@
-"""
-Support for water heaters connected to Bosch thermostat.
+"""Support for water heaters connected to Bosch thermostat.
 
 For more details about this platform, please refer to the documentation at...
 """
+
 from __future__ import annotations
+
 from bosch_thermostat_client.const import GATEWAY, SELECT
+
 from homeassistant.components.select import SelectEntity
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .bosch_entity import BoschEntity
-from .const import (
-    DOMAIN,
-    SIGNAL_BOSCH,
-    SIGNAL_SELECT,
-    UUID,
-)
+from .const import DOMAIN, SIGNAL_BOSCH, SIGNAL_SELECT, UUID
 
 
-async def async_setup_entry(hass, config_entry, async_add_entities):
+async def async_setup_entry(
+    hass: HomeAssistant | None, config_entry, async_add_entities
+):
     """Set up the Bosch Select from a config entry."""
     uuid = config_entry.data[UUID]
     data = hass.data[DOMAIN][uuid]
@@ -42,9 +42,10 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     return True
 
 
-async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
+async def async_setup_platform(
+    hass: HomeAssistant | None, config, async_add_entities, discovery_info=None
+):
     """Set up the Bosch Thermostat Platform."""
-    pass
 
 
 class BoschSelect(BoschEntity, SelectEntity):
@@ -54,7 +55,7 @@ class BoschSelect(BoschEntity, SelectEntity):
 
     def __init__(
         self,
-        hass,
+        hass: HomeAssistant,
         uuid,
         bosch_object,
         gateway,
@@ -62,7 +63,7 @@ class BoschSelect(BoschEntity, SelectEntity):
         attr_uri,
         domain_name,
         is_enabled=False,
-    ):
+    ) -> None:
         """Set up device and add update callback to get data from websocket."""
         super().__init__(
             hass=hass, uuid=uuid, bosch_object=bosch_object, gateway=gateway

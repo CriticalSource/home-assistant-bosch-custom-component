@@ -1,17 +1,19 @@
 """Bosch sensor for Recording sensor in IVT."""
 
 from __future__ import annotations
-from datetime import timedelta, datetime
-import logging
-from .statistic_helper import StatisticHelper
 
-from ..const import SIGNAL_RECORDING_UPDATE_BOSCH, UNITS_CONVERTER, VALUE
+from datetime import datetime, timedelta
+import logging
+
 from homeassistant.components.recorder.models import (
     StatisticData,
     timestamp_to_datetime_or_none,
 )
 from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.util import dt as dt_util
+
+from ..const import SIGNAL_RECORDING_UPDATE_BOSCH, UNITS_CONVERTER, VALUE
+from .statistic_helper import StatisticHelper
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,9 +33,7 @@ class RecordingSensor(StatisticHelper):
     def statistic_id(self) -> str:
         """External API statistic ID."""
         if not self._short_id:
-            self._short_id = self.entity_id.replace(".", "").replace(
-                "sensor", ""
-            )
+            self._short_id = self.entity_id.replace(".", "").replace("sensor", "")
         return f"{self._domain_name}:{self._short_id}external".lower()
 
     def attrs_write(self, last_reset) -> None:
@@ -59,9 +59,7 @@ class RecordingSensor(StatisticHelper):
         def get_last_full_hour() -> datetime:
             return now - timedelta(hours=1)
 
-        last_hour = get_last_full_hour().replace(
-            minute=0, second=0, microsecond=0
-        )
+        last_hour = get_last_full_hour().replace(minute=0, second=0, microsecond=0)
 
         def find_idx():
             for row in data[VALUE]:
@@ -74,42 +72,38 @@ class RecordingSensor(StatisticHelper):
 
     async def async_update(self) -> None:
         """Update state of device."""
-        _LOGGER.debug("Update of sensor %s called.", self.unique_id)
+        _LOGGER.debug("Update of sensor %s called", self.unique_id)
         if self._new_stats_api:
             self._unit_of_measurement = UNITS_CONVERTER.get(
                 self._bosch_object.unit_of_measurement
             )
             _LOGGER.debug(
-                "Invoking external statistic function for %s.",
+                "Invoking external statistic function for %s",
                 self.statistic_id,
             )
             async with self._statistic_import_lock:
                 await self._insert_statistics()
         else:
-            _LOGGER.debug("Old gather data algorithm.")
+            _LOGGER.debug("Old gather data algorithm")
             await self.async_old_gather_update()
 
-    async def _upsert_past_statistics(
-        self, start: datetime, stop: datetime
-    ) -> None:
+    async def _upsert_past_statistics(self, start: datetime, stop: datetime) -> None:
         now = dt_util.now()
         diff = now - start
         if now.day == start.day:
-            _LOGGER.warn("Can't upsert today date. Try again tomorrow.")
+            _LOGGER.warning("Can't upsert today date. Try again tomorrow")
             return
         if diff > timedelta(days=60):
-            _LOGGER.warn(
+            _LOGGER.warning(
                 "Update more than 60 days might take some time! Component will try to do that anyway!"
             )
         stats = await self.fetch_past_data(
             start_time=start, stop_time=start + timedelta(hours=26)
         )  # return list of objects {'d': datetime with timezone, 'value': 'used kWh in last hour'}
         if not stats:
-            _LOGGER.debug("No stats found. Exiting.")
+            _LOGGER.debug("No stats found. Exiting")
             return
-        stats_dict = {
-            dt_util.as_timestamp(stat["d"]): stat for stat in stats.values()
-        }
+        stats_dict = {dt_util.as_timestamp(stat["d"]): stat for stat in stats.values()}
         # get stats from HA database
         last_stats = await self.get_stats_from_ha_db(
             start_time=start - timedelta(hours=1), end_time=now
@@ -125,7 +119,7 @@ class RecordingSensor(StatisticHelper):
                 _state = +stat["value"]
                 _sum += _state  # increase sum
                 _LOGGER.debug(
-                    "Putting past state to statistic table with id: %s. Date: %s, state: %s, sum: %s.",
+                    "Putting past state to statistic table with id: %s. Date: %s, state: %s, sum: %s",
                     self.statistic_id,
                     current_time,
                     _state,
@@ -160,9 +154,8 @@ class RecordingSensor(StatisticHelper):
                 )
         self.add_external_stats(stats=list(out.values()))
 
-    def append_statistics(
-        self, stats: list, sum: float, now: datetime
-    ) -> float:
+    def append_statistics(self, stats: list, sum: float, now: datetime) -> float:
+        """Append statistics to the external stats list."""
         statistics_to_push = []
         for stat in stats:
             _date: datetime = stat["d"]
@@ -171,7 +164,7 @@ class RecordingSensor(StatisticHelper):
                 continue
             sum += _state
             _LOGGER.debug(
-                "Appending day to statistic table with id: %s. Date: %s, state: %s, sum: %s.",
+                "Appending day to statistic table with id: %s. Date: %s, state: %s, sum: %s",
                 self.statistic_id,
                 _date,
                 _state,
@@ -194,15 +187,11 @@ class RecordingSensor(StatisticHelper):
         now = dt_util.now()
         last_stat = await self.get_last_stat()
         if len(last_stat) == 0 or len(last_stat[self.statistic_id]) == 0:
-            _LOGGER.debug(
-                "Last stats not exist. Trying to fetch last 30 days of data."
-            )
+            _LOGGER.debug("Last stats not exist. Trying to fetch last 30 days of data")
             start_time = now - timedelta(days=30)
-            all_stats = await self.fetch_past_data(
-                start_time=start_time, stop_time=now
-            )
+            all_stats = await self.fetch_past_data(start_time=start_time, stop_time=now)
             if not all_stats:
-                _LOGGER.warn("Stats not found.")
+                _LOGGER.warning("Stats not found")
                 return
             all_stats = list(all_stats.values())
             self.append_statistics(stats=all_stats, sum=_sum, now=now)
@@ -210,14 +199,12 @@ class RecordingSensor(StatisticHelper):
 
         start_of_day = dt_util.start_of_local_day()
         last_stat_row = last_stat[self.statistic_id][0]
-        last_stat_start = timestamp_to_datetime_or_none(
-            last_stat_row.get("start")
-        )
+        last_stat_start = timestamp_to_datetime_or_none(last_stat_row.get("start"))
 
         async def get_last_stats_in_ha():
-            start_time = dt_util.start_of_local_day(
-                last_stat_start
-            ) - timedelta(hours=24)
+            start_time = dt_util.start_of_local_day(last_stat_start) - timedelta(
+                hours=24
+            )
             return await self.get_stats_from_ha_db(
                 start_time=start_time,
                 end_time=now,
@@ -254,11 +241,7 @@ class RecordingSensor(StatisticHelper):
                     start_time=start_time, stop_time=now
                 )
                 return (
-                    [
-                        row
-                        for row in bosch_data.values()
-                        if row["d"] > start_time
-                    ],
+                    [row for row in bosch_data.values() if row["d"] > start_time],
                     _sum,
                 )
             _LOGGER.debug(
